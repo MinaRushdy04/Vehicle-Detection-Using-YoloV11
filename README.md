@@ -1,73 +1,194 @@
-# Vehicle Counting and Speed Estimation using YOLO and SORT
+# Vehicle Counting and Object Tracking with YOLOv3 + SORT
 
-This project demonstrates vehicle counting and speed estimation using YOLO (You Only Look Once) for object detection and SORT (Simple Online and Realtime Tracking) for tracking the detected vehicles in a video stream. The aim is to automate the process of monitoring traffic flow, which is essential for effective traffic management and planning.
+This project detects objects in traffic video with YOLOv3, tracks them across frames with SORT, counts only vehicle-class objects crossing a configured line, and logs every tracked object with timestamps for later analysis.
 
-## Insights
+The important refinement is that counting and tracking are separated:
 
-### Motivation
-Traffic congestion is a common issue in urban areas, leading to increased travel time, fuel consumption, and pollution. Manual traffic monitoring is labor-intensive and prone to errors. An automated system that can accurately count vehicles and estimate their speeds in real-time can significantly enhance traffic management and reduce congestion.
+- **Counting target:** `car`, `motorbike`, `bus`, and `truck`.
+- **Tracking/logging target:** all detected COCO classes by default.
+- **Reason:** the system produces a clean traffic count while still keeping evidence for non-counted detections such as people, traffic lights, or false positives.
 
-### Approach
-This project leverages state-of-the-art computer vision techniques to detect and track vehicles in real-time. The combination of YOLO for object detection and SORT for object tracking provides a robust solution for vehicle counting and speed estimation.
+## What The Pipeline Does
 
-### YOLO (You Only Look Once)
-YOLO is an object detection algorithm known for its speed and accuracy. It divides the input image into a grid and predicts bounding boxes and class probabilities for each grid cell. YOLO is capable of detecting multiple objects in a single frame, making it suitable for real-time applications.
+1. Loads YOLOv3 Darknet files from `yolo-coco/`.
+2. Reads a video file, webcam, or network stream.
+3. Detects objects frame by frame.
+4. Sends detections into SORT to maintain stable track IDs.
+5. Assigns each track a class label using the matched YOLO detection.
+6. Counts a track once when a countable vehicle crosses the yellow line.
+7. Writes an annotated output video.
+8. Writes CSV logs for every tracked object observation and each completed track.
 
-### SORT (Simple Online and Realtime Tracking)
-SORT is an efficient tracking algorithm that associates detections from YOLO across frames to maintain object identities. It uses a combination of the Kalman filter for predicting object positions and the Hungarian algorithm for data association. SORT is known for its simplicity and high performance in real-time tracking scenarios.
+## Outputs
 
-### Speed Estimation
-In addition to counting vehicles, the system estimates their speeds by analyzing the displacement of the bounding boxes between frames. This is crucial for traffic management, as it helps in understanding traffic flow dynamics and identifying potential speeding violations.
+By default, the script writes:
 
-### Practical Applications
-- **Traffic Monitoring:** Automated counting and speed estimation of vehicles can help traffic authorities monitor congestion in real-time and take necessary actions.
-- **Urban Planning:** Data collected from this system can be used for urban planning, such as optimizing traffic light timings, planning new roads, and managing traffic during events.
-- **Law Enforcement:** Speed estimation can assist in identifying and penalizing speeding vehicles, improving road safety.
+- `output/runs/YYYYMMDD_HHMMSS/output_video.mp4` - annotated video with boxes, track IDs, classes, speed estimates, and count line.
+- `output/runs/YYYYMMDD_HHMMSS/tracking_log.csv` - frame-level log of every tracked object.
+- `output/runs/YYYYMMDD_HHMMSS/track_summary.csv` - one row per track with label, first/last timestamp, duration, confidence, and whether it crossed the line.
+- `output/runs/YYYYMMDD_HHMMSS/run_metadata.json` - source, settings, output paths, frame count, elapsed time, and final vehicle count.
 
-Here is the link for breakdown and casestudy for this project [Vehicle Counting Blog](https://github.com/shahrul-amin/Blog-Vehicle-Counting-Using-Yolo-And-Sort)
+Each run gets a separate timestamped folder, so results from a 2:30 PM run and a 2:40 PM run are kept independently.
 
-## Table of Contents
-- Installation
-- Usage
-- References
+`tracking_log.csv` includes:
+
+- frame number
+- timestamp in seconds
+- track ID
+- predicted object label
+- whether the label is a countable vehicle class
+- confidence
+- bounding box
+- centroid
+- estimated speed
+- line-crossing event
+- running vehicle count
 
 ## Installation
 
-### Prerequisites
-Before you begin, ensure you have met the following requirements:
-- Python 3.7+
-- pip package manager
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-### Setup
-1. Clone the repository:
-    ```sh
-   git clone https://github.com/shahrul-amin/vehicle-counting.git
-   cd vehicle-counting
-3. Create and activate a virtual environment.
-4. Install the required packages.
-5. Download the YOLOv3 weights and configuration files by running:
-   ```bash
-   bash download_weights
+Download YOLOv3 weights:
+
+```bash
+bash download_weights
+```
+
+On Windows without `bash`/`wget`, download `yolov3.weights` from:
+
+```text
+https://pjreddie.com/media/files/yolov3.weights
+```
+
+Place it here:
+
+```text
+yolo-coco/yolov3.weights
+```
 
 ## Usage
 
-### Running the Project
-1. Place the input video file in the `input` directory. Ensure the file is named `input_video.mp4` or update the script with the correct file name.
-2. Run the vehicle counting script using `python vehicle_counting.py`.
-3. The output video with the counted vehicles and estimated speeds will be saved in the `output` directory as `output_video.avi`.
+Run with an explicit video:
 
-### Script Breakdown
-The main script performs the following steps:
-- Imports necessary packages.
-- Initializes the SORT tracker and necessary variables.
-- Loads the YOLO model and initializes the video stream.
-- Processes each frame: reads frames, performs object detection using YOLO, tracks objects using SORT, counts vehicles crossing a predefined line, and estimates their speeds.
-- Saves the processed frames to an output video file.
+```bash
+python main.py --source "D:\Projects\Yolov11\test-sample\Vehicle Dataset Sample 2.mp4"
+```
 
-## References
-- [YOLO Object Detection with OpenCV](https://pjreddie.com/darknet/yolo/)
-- [SORT: Simple Online and Realtime Tracking](https://github.com/abewley/sort)
-- [Vehicle Counting using Python and YOLO](https://github.com/bamwani/vehicle-counting-using-python-yolo)
-- [YOLOv3: An Incremental Improvement](https://arxiv.org/abs/1804.02767) by Joseph Redmon and Ali Farhadi
-- [Multiple Object Tracking using SORT](https://www.luffca.com/2023/04/multiple-object-tracking-sort/)
-- [Car Counting and Speed Estimation](https://github.com/bamwani/car-counting-and-speed-estimation-yolo-sort-python)
+If `--input` is omitted, the script first checks `input/input_video.mp4`, then the local test sample at `../test-sample/Vehicle Dataset Sample 2.mp4`.
+
+Useful options:
+
+```bash
+python main.py ^
+  --source "D:\Projects\Yolov11\test-sample\Vehicle Dataset Sample 2.mp4" ^
+  --line 100 400 1000 400 ^
+  --count-classes car,motorbike,bus,truck ^
+  --track-classes all ^
+  --meters-per-pixel 0.05
+```
+
+For a quick smoke test:
+
+```bash
+python main.py --max-frames 30
+```
+
+## Real-Time Display
+
+Use `--source` with `--display` to process a live feed and show bounding boxes, labels, track IDs, count line, vehicle count, speed estimates, and processing FPS.
+
+Webcam:
+
+```bash
+python main.py --source 0 --display --no-output --no-logs
+```
+
+RTSP or HTTP stream:
+
+```bash
+python main.py --source "rtsp://username:password@camera-ip/stream" --display --no-output
+```
+
+Video file played like a live feed:
+
+```bash
+python main.py --source "D:\Projects\Yolov11\test-sample\Vehicle Dataset Sample 2.mp4" --display --realtime
+```
+
+Press `q` in the display window to stop.
+
+For better live performance on CPU, reduce the YOLO input size:
+
+```bash
+python main.py --source 0 --display --no-output --width 320 --height 320
+```
+
+## Web Demo Deployment
+
+The project includes a Gradio web app for an upload-and-process workflow:
+
+```bash
+python app.py
+```
+
+Open:
+
+```text
+http://localhost:7860
+```
+
+The web app accepts an uploaded video, streams annotated preview frames while processing, then exposes the final output video, tracking log, track summary, and run metadata from that run folder.
+
+Docker deployment:
+
+```bash
+docker build -t vehicle-counting .
+docker run --rm -p 7860:7860 vehicle-counting
+```
+
+## Design Notes For Discussion
+
+The system intentionally tracks more than it counts. That makes the project stronger because the final count is not a black box: every detection and track can be audited in the CSV logs. If a wrong count appears, the log shows whether the issue came from detection, tracking, line crossing, or class filtering.
+
+Vehicle counting uses a one-count-per-track rule, so the same object should not be counted repeatedly if it jitters around the line. Non-vehicle classes are still logged, but they do not increment the traffic counter.
+
+Speed is estimated from centroid movement, video FPS, and a configurable `meters-per-pixel` calibration. This is suitable for demonstration and relative comparison, but a real deployment should calibrate the scene using known road distances or camera homography.
+
+## Current Limitations
+
+- The detector is YOLOv3, not YOLOv11.
+- Speed is approximate unless the camera scene is calibrated.
+- SORT can switch IDs during heavy occlusion.
+- The count line is manually configured.
+- Detection quality depends on lighting, camera angle, and video resolution.
+
+## Strong Next Improvements
+
+## Added Advanced Features
+
+- Optional YOLOv11/Ultralytics detector support with `--detector ultralytics --model yolo11n.pt`.
+- Optional ByteTrack support with `--tracker bytetrack` when using Ultralytics.
+- Model comparison script for YOLOv3 vs YOLOv11 experiments.
+- ROI filtering from inline polygon strings or JSON files.
+- Per-lane assignment using lane polygon config files.
+- Direction estimation from track movement.
+- Low-confidence review flags in the logs.
+- Detection heatmap and heatmap overlay artifacts.
+- HTML and PDF report generation per run.
+- Optional counted-vehicle crop export for plate/OCR follow-up experiments.
+- REST API with background jobs through `api.py`.
+- Previous-run browsing in the Gradio app.
+
+The dashboard feature is intentionally halted for now.
+
+## Strong Next Improvements
+
+- Add homography-based speed calibration.
+- Add a trained license-plate detector/OCR model for the saved vehicle crops.
+- Add authentication if the Gradio app or API is exposed publicly.
+- Add persistent database storage for run metadata.
+- Add GPU/TensorRT deployment for higher FPS.

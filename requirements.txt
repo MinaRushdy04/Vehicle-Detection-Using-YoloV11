@@ -1,0 +1,11 @@
+filterpy==1.4.5
+fastapi>=0.115.0
+gradio>=5.0.0
+lap>=0.5.12
+numba==0.65.1
+numpy==2.4.4
+opencv-python==4.13.0.92
+reportlab>=4.0.0
+scipy==1.17.1
+ultralytics>=8.3.0
+uvicorn>=0.30.0

@@ -139,8 +139,10 @@ def associate_detections_to_trackers(detections,trackers,iou_threshold = 0.3):
 
   Returns 3 lists of matches, unmatched_detections and unmatched_trackers
   """
-  if(len(trackers)==0) or (len(detections)==0):
-    return np.empty((0,2),dtype=int), np.arange(len(detections)), np.empty((0,5),dtype=int)
+  if(len(trackers)==0):
+    return np.empty((0,2),dtype=int), np.arange(len(detections)), np.empty((0,),dtype=int)
+  if(len(detections)==0):
+    return np.empty((0,2),dtype=int), np.empty((0,),dtype=int), np.arange(len(trackers))
   iou_matrix = np.zeros((len(detections),len(trackers)),dtype=np.float32)
 
   for d,det in enumerate(detections):
@@ -191,10 +193,10 @@ class Sort(object):
 
     NOTE: The number of objects returned may differ from the number of detections provided.
     """
-    
-    # prevent "too many indices for array" error
-    if len(dets)==0:
-      return np.empty((0,5))
+    if dets is None or len(dets)==0:
+      dets = np.empty((0,5))
+    else:
+      dets = np.asarray(dets)
 
     self.frame_count += 1
     #get predicted locations from existing trackers.
